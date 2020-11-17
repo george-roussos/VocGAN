@@ -7,16 +7,34 @@ import numpy as np
 from utils.stft import TacotronSTFT
 from utils.hparams import HParam
 from utils.utils import read_wav_np
+from mozilla_tts_audio import AudioProcessor
 
 
 def main(hp, args):
-    stft = TacotronSTFT(filter_length=hp.audio.filter_length,
-                        hop_length=hp.audio.hop_length,
-                        win_length=hp.audio.win_length,
-                        n_mel_channels=hp.audio.n_mel_channels,
-                        sampling_rate=hp.audio.sampling_rate,
-                        mel_fmin=hp.audio.mel_fmin,
-                        mel_fmax=hp.audio.mel_fmax)
+    ap = AudioProcessor(                 
+       sample_rate=22050,
+       num_mels=80,
+       min_level_db=-100,
+       frame_shift_ms=None,
+       frame_length_ms=None,
+       hop_length=256,
+       win_length=1024,
+       ref_level_db=20,
+       fft_size=1024,
+       power=1.5,
+       preemphasis=0.98,
+       signal_norm=True,
+       symmetric_norm=True,
+       max_norm=4.0,
+       mel_fmin=0.0,
+       mel_fmax=8000.0,
+       spec_gain=20.0,
+       stft_pad_mode="reflect",
+       clip_norm=True,
+       griffin_lim_iters=60,
+       do_trim_silence=False,
+       trim_db=60)
+
 
     wav_files = glob.glob(os.path.join(args.data_path, '**', '*.wav'), recursive=True)
     mel_path = hp.data.mel_path
@@ -34,8 +52,10 @@ def main(hp, args):
                     mode='constant', constant_values=0.0)
 
         wav = torch.from_numpy(wav).unsqueeze(0)
-        mel = stft.mel_spectrogram(wav)  # mel [1, num_mel, T]
-
+        wav = wav.squeeze(0)
+        mel = np.float32(ap.melspectrogram(wav.detach().cpu().numpy()))
+        mel = torch.from_numpy(mel)
+        mel = mel.unsqueeze(0)
         mel = mel.squeeze(0)  # [num_mel, T]
         id = os.path.basename(wavpath).split(".")[0]
         np.save('{}/{}.npy'.format(mel_path, id), mel.numpy(), allow_pickle=False)
